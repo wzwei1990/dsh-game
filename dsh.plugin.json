@@ -1,18 +1,21 @@
 {
-  "id": "dsh-game",
-  "version": "0.2.0",
-  "main": "./lib/index.js",
-  "description": "Game knowledge for DeepSeek Harness: query game wikis (BWIKI / MediaWiki) for real facts, with a self-maintaining game registry and polite rate limiting.",
-  "engines": {
-    "dsh": ">=0.2.1-rc.2 <0.3.0-0"
-  },
-  "contributes": {
-    "tools": [
-      "game_list",
-      "game_resolve",
-      "game_verify",`n      "game_wiki_search",
-      "game_wiki_read"
-    ],
-    "skills": []
-  }
+    "id":  "dsh-game",
+    "version":  "0.2.0",
+    "main":  "./lib/index.js",
+    "description":  "Game knowledge for DeepSeek Harness: query game wikis (BWIKI / MediaWiki) for real facts, with a self-maintaining game registry and polite rate limiting.",
+    "engines":  {
+                    "dsh":  "\u003e=0.2.1-rc.2 \u003c0.3.0-0"
+                },
+    "contributes":  {
+                        "skills":  [
+
+                                   ],
+                        "tools":  [
+                                      "game_list",
+                                      "game_resolve",
+                                      "game_verify",
+                                      "game_wiki_search",
+                                      "game_wiki_read"
+                                  ]
+                    }
 }
