@@ -12,7 +12,8 @@
 | `game_resolve` | 游戏名 → wiki 站点（已收录直接返回；给了 slug 就探测并注册） |
 | `game_wiki_search` | 站内搜条目（Boss / 道具 / 玩法 / 任务） |
 | `game_verify` | 复验登记的 wiki 地址是否还能用（失败标 stale，提示重新登记） |
-| `game_wiki_read` | 读条目正文（纯文本，带来源链接；自动跟随重定向） |
+| `game_wiki_outline` | 列条目的章节大纲（长条目先看大纲，再只读需要的节） |
+| `game_wiki_read` | 读条目正文/某一节（纯文本，带来源链接；自动跟随重定向；表格转成行） |
 
 实测（影之刃零，`wiki.biligame.com/yingzhiren`）：
 
@@ -124,7 +125,7 @@ await game.read('影之刃零', '魔渊BOSS攻略')          // PageResult（含
 - [x] **G0** BWIKI 适配器（搜索 / 正文 / 重定向）+ 游戏表 + 限速缓存 + 工具
 - [x] **G1** 地址登记 + 复验（game_resolve(url) / game_verify / stale 标记 / reverifyDays）
 - [ ] **G2** 免手填发现：总站搜索/web_search 自动拿到子站地址（省一次人工）
-- [ ] **G2.5** 正文整形：按章节裁剪、表格转文本、超长分页返回
+- [x] **G2.5** 正文整形：章节大纲 + 按节读取、表格转行、目录剔除
 - [ ] **G3** 与 dsh-napcat 联动：群里出现游戏名 → 预取摘要 → 带来源回答
 - [ ] **G4** 第二数据源（先验证可用性再接）：如 Fandom / wiki.gg / Steam 元数据
 - [ ] **G5** 观点档案：结合本插件查到的事实 + 机器人自己的历史发言，支撑"有立场"

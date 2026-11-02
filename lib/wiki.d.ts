@@ -26,16 +26,25 @@ export interface PageResult {
     chars: number;
     truncated: boolean;
 }
+export interface SectionInfo {
+    index: number;
+    level: number;
+    title: string;
+}
 export interface WikiClientLike {
     search(site: GameSite, keyword: string, limit?: number): Promise<SearchHit[]>;
-    read(site: GameSite, title: string, maxChars?: number): Promise<PageResult>;
+    read(site: GameSite, title: string, options?: {
+        maxChars?: number;
+        section?: number;
+    }): Promise<PageResult>;
+    sections(site: GameSite, title: string): Promise<SectionInfo[]>;
 }
 /** 站点基础信息（用于校验 slug 是否真的有 wiki） */
 export declare function probeSite(fetcher: PoliteFetcher, slug: string): Promise<{
     ok: boolean;
     name?: string;
 }>;
-/** MediaWiki HTML → 纯文本（保留标题层级，去掉导航/脚本/表格残渣） */
+/** MediaWiki HTML → 纯文本（保留标题层级，表格转行，去掉导航/目录/脚本） */
 export declare function htmlToText(html: string): string;
 export declare function decodeEntities(value: string): string;
 export declare class WikiClient implements WikiClientLike {
@@ -49,7 +58,12 @@ export declare class WikiClient implements WikiClientLike {
     private cacheGet;
     private cacheSet;
     search(site: GameSite, keyword: string, limit?: number): Promise<SearchHit[]>;
-    read(site: GameSite, title: string, maxChars?: number): Promise<PageResult>;
+    /** 列出一个页面的章节（用于先看大纲，再只读需要的章节，省上下文） */
+    sections(site: GameSite, title: string): Promise<SectionInfo[]>;
+    read(site: GameSite, title: string, options?: {
+        maxChars?: number;
+        section?: number;
+    }): Promise<PageResult>;
 }
 export declare function trimPage(page: PageResult, maxChars: number | undefined): PageResult;
 /** 工具层用：把错误说成人话（限流/没有页面/网络） */

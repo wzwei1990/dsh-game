@@ -109,3 +109,16 @@ test('注册表：markStale / markVerified 改状态且保留 hits', () => {
   assert.equal(fresh.status, 'active')
   assert.ok((fresh.verifiedAt ?? 0) > 0)
 })
+test('表格转行：每个 tr 一行，单元格用 / 分隔', () => {
+  const html = '<table><tr><th>BOSS</th><th>难度</th></tr><tr><td>魔渊</td><td>高</td></tr></table>'
+  const text = htmlToText(html)
+  assert.ok(text.includes('BOSS / 难度'), text)
+  assert.ok(text.includes('魔渊 / 高'), text)
+})
+
+test('目录区块整块剔除', () => {
+  const html = '<div id="toc" class="toc"><ul><li>1 BOSS列表</li><li>2 通用技巧</li></ul></div><p>正文在这里</p>'
+  const text = htmlToText(html)
+  assert.ok(text.includes('正文在这里'))
+  assert.ok(!text.includes('BOSS列表'), text)
+})

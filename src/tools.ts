@@ -207,17 +207,53 @@ export function registerTools(ctx: Context, deps: ToolDeps): void {
   }))
 
   ctx.tools.register(defineTool({
+    name: 'game_wiki_outline',
+    description: '列出一个 wiki 条目的章节大纲（章节号 + 标题）。长条目先看大纲，再用 game_wiki_read 的 section 只读需要的那节，省上下文。',
+    parameters: {
+      game: { type: 'string', required: true, description: '游戏名' },
+      title: { type: 'string', required: true, description: '条目名' },
+    },
+    output: textOutput(),
+    isConcurrencySafe: () => true,
+    execute: async args => {
+      const input = args as { game: string; title: string }
+      let site: GameSite
+      try {
+        site = registry.site(input.game)
+      } catch (error) {
+        return error instanceof Error ? error.message : String(error)
+      }
+      try {
+        const sections = await wiki.sections(site, input.title)
+        if (sections.length === 0) {
+          return '「' + input.title + '」没有可用的章节（可能是很短的重定向页或列表页），直接 game_wiki_read 读全文。'
+        }
+        const lines = ['【' + input.game + '】' + input.title + ' 章节大纲：']
+        for (const section of sections) {
+          lines.push(String(section.index) + '. ' + '  '.repeat(Math.max(0, section.level - 1)) + section.title)
+        }
+        lines.push('用法：game_wiki_read(game=…, title=…, section=上面的编号)')
+        return lines.join('\n')
+      } catch (error) {
+        const { humanError } = await import('./wiki.js')
+        return '取章节失败：' + humanError(error)
+      }
+    },
+  }))
+
+  ctx.tools.register(defineTool({
     name: 'game_wiki_read',
     description: '读某个游戏 BWIKI 条目的正文（纯文本，带来源链接）。这是"真的知道"内容的关键：先 search 拿标题，再 read 正文。',
     parameters: {
       game: { type: 'string', required: true, description: '游戏名' },
       title: { type: 'string', required: true, description: '条目名（game_wiki_search 返回的标题）' },
+      section: { type: 'number', description: '只读某一节（先用 game_wiki_outline 拿章节号）' },
       max_chars: { type: 'number', description: '最多返回多少字符（默认按配置）' },
     },
     output: textOutput(),
     isConcurrencySafe: () => true,
     execute: async args => {
-      const input = args as { game: string; title: string; max_chars?: number }
+      const input = args as { game: string; title: string; section?: number; max_chars?: number }
       let site: GameSite
       try {
         site = registry.site(input.game)
@@ -226,7 +262,7 @@ export function registerTools(ctx: Context, deps: ToolDeps): void {
       }
       const maxChars = Number.isFinite(Number(input.max_chars)) ? Number(input.max_chars) : deps.maxChars
       try {
-        const page = await wiki.read(site, input.title, maxChars)
+        const page = await wiki.read(site, input.title, { maxChars, section: Number.isFinite(Number(input.section)) ? Number(input.section) : undefined })
         return pageText(page, input.game)
       } catch (error) {
         const { humanError } = await import('./wiki.js')

@@ -30,9 +30,16 @@ export interface PageResult {
   truncated: boolean
 }
 
+export interface SectionInfo {
+  index: number
+  level: number
+  title: string
+}
+
 export interface WikiClientLike {
   search(site: GameSite, keyword: string, limit?: number): Promise<SearchHit[]>
-  read(site: GameSite, title: string, maxChars?: number): Promise<PageResult>
+  read(site: GameSite, title: string, options?: { maxChars?: number; section?: number }): Promise<PageResult>
+  sections(site: GameSite, title: string): Promise<SectionInfo[]>
 }
 
 interface BwikiResponse<T> {
@@ -58,11 +65,15 @@ export async function probeSite(fetcher: PoliteFetcher, slug: string): Promise<{
   return name === undefined ? { ok: false } : { ok: true, name }
 }
 
-/** MediaWiki HTML → 纯文本（保留标题层级，去掉导航/脚本/表格残渣） */
+/** MediaWiki HTML → 纯文本（保留标题层级，表格转行，去掉导航/目录/脚本） */
 export function htmlToText(html: string): string {
   let text = html
   text = text.replace(/<script[\s\S]*?<\/script>/gi, '')
   text = text.replace(/<style[\s\S]*?<\/style>/gi, '')
+  // 目录区块（TOC）整块丢掉：模型不需要"目录"列表
+  text = text.replace(/<div[^>]*(?:id|class)="[^"]*toc[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '')
+  // 表格：每个 <tr> 变成一行，单元格用 " / " 分隔（比纯文本粘连好读）
+  text = text.replace(/<table[\s\S]*?<\/table>/gi, table => rowsToLines(table))
   // 标题转成 "## "
   text = text.replace(/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi, (_m, level: string, inner: string) => {
     const clean = stripTags(inner)
@@ -96,6 +107,19 @@ export function htmlToText(html: string): string {
     out.push(line)
   }
   return out.join('\n').trim()
+}
+
+/** 把一张 wiki 表格转成多行文本：行内单元格用 " / " 分隔 */
+function rowsToLines(table: string): string {
+  const rows = Array.from(table.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi))
+  const lines: string[] = []
+  for (const row of rows) {
+    const cells = Array.from((row[1] ?? '').matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/gi))
+      .map(cell => decodeEntities(stripTags(cell[1] ?? '')).replace(/\s+/g, ' ').trim())
+      .filter(cell => cell !== '')
+    if (cells.length > 0) lines.push(cells.join(' / '))
+  }
+  return lines.length === 0 ? '' : '\n' + lines.join('\n') + '\n'
 }
 
 function stripTags(value: string): string {
@@ -190,15 +214,36 @@ export class WikiClient implements WikiClientLike {
     return hits
   }
 
-  async read(site: GameSite, title: string, maxChars?: number): Promise<PageResult> {
+  /** 列出一个页面的章节（用于先看大纲，再只读需要的章节，省上下文） */
+  async sections(site: GameSite, title: string): Promise<SectionInfo[]> {
     const clean = title.trim()
     if (clean === '') throw new Error('页面标题不能为空')
-    const key = 'page:' + site.slug + ':' + clean
+    const key = 'sections:' + site.slug + ':' + clean
+    const cached = this.cacheGet<SectionInfo[]>(key)
+    if (cached !== undefined) return cached
+    const url = this.apiBase(site)
+      + '?action=parse&page=' + encodeURIComponent(clean)
+      + '&prop=sections&redirects=1&format=json&formatversion=2'
+    const json = await this.fetcher.json<{ parse?: { sections?: Array<{ index?: string; level?: string; line?: string }> } }>(url, { referer: this.pageUrl(site, clean) })
+    const sections = (json.parse?.sections ?? [])
+      .filter(item => item.index !== undefined && item.line !== undefined)
+      .map(item => ({ index: Number(item.index), level: Number(item.level ?? 1), title: htmlToText(item.line ?? '') }))
+    this.cacheSet(key, sections)
+    return sections
+  }
+
+  async read(site: GameSite, title: string, options: { maxChars?: number; section?: number } = {}): Promise<PageResult> {
+    const clean = title.trim()
+    const maxChars = options.maxChars
+    const section = options.section
+    if (clean === '') throw new Error('页面标题不能为空')
+    const key = 'page:' + site.slug + ':' + clean + (section === undefined ? '' : '#' + String(section))
     const cached = this.cacheGet<PageResult>(key)
     if (cached !== undefined) return trimPage(cached, maxChars)
     const url = this.apiBase(site)
       + '?action=parse&page=' + encodeURIComponent(clean)
       + '&prop=text&redirects=1&format=json&formatversion=2&disablelimitreport=1&disableeditsection=1'
+      + (section === undefined ? '' : '&section=' + String(section))
     const json = await this.fetcher.json<BwikiResponse<unknown>>(url, { referer: this.pageUrl(site, clean) })
     if (json.error !== undefined) {
       throw new Error('wiki 没有这个页面（' + String(json.error.info ?? json.error.code ?? 'unknown') + '）')
@@ -211,7 +256,7 @@ export class WikiClient implements WikiClientLike {
     if (redirect !== null && (redirect[1] ?? '').trim() !== '') {
       const target = (redirect[1] ?? '').trim()
       this.log('debug', '跟随重定向 ' + clean + ' → ' + target)
-      return this.read(site, target, maxChars)
+      return this.read(site, target, options)
     }
     const result: PageResult = {
       title: json.parse?.title ?? clean,
