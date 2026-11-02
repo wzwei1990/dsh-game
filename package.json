@@ -60,6 +60,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --test \"test/**/*.test.mjs\"",
-    "prepublishOnly": "npm run build",`n    "prepare": "tsc -p tsconfig.json || true"
+    "prepublishOnly": "npm run build",
+    "prepare": "tsc -p tsconfig.json || true"
   }
 }
