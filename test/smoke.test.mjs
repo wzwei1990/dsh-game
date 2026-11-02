@@ -122,3 +122,20 @@ test('目录区块整块剔除', () => {
   assert.ok(text.includes('正文在这里'))
   assert.ok(!text.includes('BOSS列表'), text)
 })
+test('等级表压缩：两列表压成一行区间，带表头也认', () => {
+  const rows = ['<tr><th>等级</th><th>生命</th></tr>']
+    .concat(Array.from({ length: 10 }, (_, i) => '<tr><td>' + String(i + 1) + '</td><td>' + String((i + 1) * 1000) + '</td></tr>'))
+    .join('')
+  const text = htmlToText('<table>' + rows + '</table>')
+  assert.ok(text.includes('等级 1→10：1000→10000'), text)
+  assert.ok(!text.includes('1 / 1000'), text)
+})
+
+test('长表截断：超过 16 行保留前 10 + 后 3', () => {
+  const rows = Array.from({ length: 30 }, (_, i) => '<tr><td>行' + String(i + 1) + '</td><td>值' + String(i + 1) + '</td></tr>').join('')
+  const text = htmlToText('<table>' + rows + '</table>')
+  assert.ok(text.includes('表共 30 行'))
+  assert.ok(text.includes('行1 / 值1'))
+  assert.ok(!text.includes('行15 / 值15'))
+  assert.ok(text.includes('行30 / 值30'))
+})

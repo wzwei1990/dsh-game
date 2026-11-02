@@ -46,6 +46,12 @@ export declare function probeSite(fetcher: PoliteFetcher, slug: string): Promise
 }>;
 /** MediaWiki HTML → 纯文本（保留标题层级，表格转行，去掉导航/目录/脚本） */
 export declare function htmlToText(html: string): string;
+/**
+ * 把一张 wiki 表格转成紧凑文本。
+ * - 两列「等级 / 数值」表：压成一行区间（1→50：12000→330120）
+ * - 常规表：保留表头 + 前若干行，超长就省略中间（wiki 的等级表常有 50 行，全给会淹没答案）
+ */
+export declare function rowsToLines(table: string): string;
 export declare function decodeEntities(value: string): string;
 export declare class WikiClient implements WikiClientLike {
     private readonly fetcher;

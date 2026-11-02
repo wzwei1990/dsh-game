@@ -58,7 +58,6 @@ export const SEED_GAMES: GameEntry[] = [
     lastHit: 0,
     status: 'active',
     source: 'seed',
-    verifiedAt: 1762000000000,
   },
 ]
 

@@ -109,17 +109,37 @@ export function htmlToText(html: string): string {
   return out.join('\n').trim()
 }
 
-/** 把一张 wiki 表格转成多行文本：行内单元格用 " / " 分隔 */
-function rowsToLines(table: string): string {
+/**
+ * 把一张 wiki 表格转成紧凑文本。
+ * - 两列「等级 / 数值」表：压成一行区间（1→50：12000→330120）
+ * - 常规表：保留表头 + 前若干行，超长就省略中间（wiki 的等级表常有 50 行，全给会淹没答案）
+ */
+export function rowsToLines(table: string): string {
   const rows = Array.from(table.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi))
-  const lines: string[] = []
-  for (const row of rows) {
-    const cells = Array.from((row[1] ?? '').matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/gi))
+    .map(row => Array.from((row[1] ?? '').matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/gi))
       .map(cell => decodeEntities(stripTags(cell[1] ?? '')).replace(/\s+/g, ' ').trim())
-      .filter(cell => cell !== '')
-    if (cells.length > 0) lines.push(cells.join(' / '))
+      .filter(cell => cell !== ''))
+    .filter(cells => cells.length > 0)
+  if (rows.length === 0) return ''
+
+  // 两列等级表：等级递增 + 数值 → 一行区间（允许前面有"等级 / 生命"这类表头行）
+  const pairs = rows.filter(cells => cells.length === 2 && /^\d+$/.test(cells[0] ?? ''))
+  if (pairs.length >= 6 && pairs.length >= rows.length - 2) {
+    const first = pairs[0]!
+    const last = pairs[pairs.length - 1]!
+    return '\n' + '等级 ' + first[0] + '→' + last[0] + '：' + first[1] + '→' + last[1]
+      + '（共 ' + String(pairs.length) + ' 档）' + '\n'
   }
-  return lines.length === 0 ? '' : '\n' + lines.join('\n') + '\n'
+
+  const LIMIT = 16
+  const head = rows.length > LIMIT ? rows.slice(0, 10) : rows
+  const tail = rows.length > LIMIT ? rows.slice(-3) : []
+  const lines = head.map(cells => cells.join(' / '))
+  if (tail.length > 0) {
+    lines.push('…（表共 ' + String(rows.length) + ' 行，中间省略）')
+    for (const cells of tail) lines.push(cells.join(' / '))
+  }
+  return '\n' + lines.join('\n') + '\n'
 }
 
 function stripTags(value: string): string {
