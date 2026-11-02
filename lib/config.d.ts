@@ -12,6 +12,8 @@ export interface ConfigShape {
     maxRetries: number;
     /** 工具单次返回的最大字符数（超出截断并标注） */
     maxReplyChars: number;
+    /** 超过多少天未校验就提示复验（0=不提示） */
+    reverifyDays: number;
     /** User-Agent（BWIKI 对默认 UA 更苛刻，建议保留浏览器 UA） */
     userAgent: string;
     logLevel: 'debug' | 'info' | 'warn';
@@ -22,6 +24,7 @@ export declare const Config: z<Schemastery.ObjectS<NoInfer<{
     cacheTtlMinutes: z<number, number, "volatile-defined">;
     timeoutMs: z<number, number, "volatile-defined">;
     maxRetries: z<number, number, "volatile-defined">;
+    reverifyDays: z<number, number, "volatile-defined">;
     maxReplyChars: z<number, number, "volatile-defined">;
     userAgent: z<string, string, "volatile-defined">;
     logLevel: z<"debug" | "info" | "warn", "debug" | "info" | "warn", "volatile-defined">;
@@ -31,6 +34,7 @@ export declare const Config: z<Schemastery.ObjectS<NoInfer<{
     cacheTtlMinutes: z<number, number, "volatile-defined">;
     timeoutMs: z<number, number, "volatile-defined">;
     maxRetries: z<number, number, "volatile-defined">;
+    reverifyDays: z<number, number, "volatile-defined">;
     maxReplyChars: z<number, number, "volatile-defined">;
     userAgent: z<string, string, "volatile-defined">;
     logLevel: z<"debug" | "info" | "warn", "debug" | "info" | "warn", "volatile-defined">;

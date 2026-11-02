@@ -5,12 +5,16 @@
  * 查不到就明确说查不到，禁止编数值（prompt 里也会写）。
  */
 import type { Context } from '@deepseek-ai/cordis';
-import type { GameRegistry, GameSite } from './registry.js';
+import { type GameRegistry, type GameSite } from './registry.js';
 import type { SearchHit, WikiClientLike } from './wiki.js';
 export interface ToolDeps {
     registry: GameRegistry;
     wiki: WikiClientLike;
     maxChars: number;
+    /** 探测/复验时的最小请求间隔 */
+    minIntervalMs: number;
+    /** 超过多少天未校验就提示复验（0=不提示） */
+    reverifyDays: number;
     log: (level: 'debug' | 'info' | 'warn', message: string) => void;
 }
 /** 搜索结果的紧凑文本 */

@@ -23,8 +23,15 @@ export interface GameEntry {
   hits: number
   firstSeen: number
   lastHit: number
-  /** unresolved = 探测过但没找到；active = 可用 */
-  status: 'active' | 'unresolved'
+  /**
+   * active = 可用；unresolved = 探测过但没找到；
+   * stale = 以前能用但现在访问失败（wiki 改地址/改版），需要重新登记
+   */
+  status: 'active' | 'unresolved' | 'stale'
+  /** 上次校验成功的时间（ms）；用于定期复验 */
+  verifiedAt?: number
+  /** 来源：seed=内置；manual=手填 slug；url=给的是子站地址 */
+  source?: 'seed' | 'manual' | 'url'
 }
 
 export interface RegistryOptions {
@@ -50,8 +57,29 @@ export const SEED_GAMES: GameEntry[] = [
     firstSeen: 0,
     lastHit: 0,
     status: 'active',
+    source: 'seed',
+    verifiedAt: 1762000000000,
   },
 ]
+
+/** 从 URL 里取 BWIKI 子站 slug：https://wiki.biligame.com/yingzhiren/xxx → yingzhiren */
+export function parseBwikiUrl(input: string): string | undefined {
+  const text = input.trim()
+  if (text === '') return undefined
+  const match = /(?:https?:\/\/)?wiki\.biligame\.com\/([A-Za-z0-9_.-]+)/i.exec(text)
+  if (match !== null) return match[1]?.toLowerCase()
+  // 也接受直接给的 slug
+  if (/^[A-Za-z0-9_.-]+$/.test(text)) return text.toLowerCase()
+  return undefined
+}
+
+/** 条目是否需要复验（verifiedAt 超过 ttlDays 天，或从未校验） */
+export function needsVerify(entry: GameEntry, ttlDays: number, now = Date.now()): boolean {
+  if (ttlDays <= 0) return false
+  if (entry.status === 'unresolved') return false
+  if (entry.verifiedAt === undefined || entry.verifiedAt === 0) return true
+  return now - entry.verifiedAt > ttlDays * 24 * 60 * 60_000
+}
 
 export class GameRegistry {
   private readonly file: string
@@ -120,14 +148,22 @@ export class GameRegistry {
     return entry.site
   }
 
-  /** 注册/更新（discover 成功后调用） */
-  upsert(input: { name: string; aliases?: string[]; site: GameSite; status?: 'active' | 'unresolved' }): GameEntry {
+  /** 注册/更新（探测成功后调用）；source 记录"这个地址是怎么来的" */
+  upsert(input: {
+    name: string
+    aliases?: string[]
+    site: GameSite
+    status?: 'active' | 'unresolved' | 'stale'
+    source?: 'seed' | 'manual' | 'url'
+  }): GameEntry {
     const needle = normalizeName(input.name)
     const existing = this.games.find(entry => normalizeName(entry.name) === needle)
     if (existing !== undefined) {
       existing.site = input.site
       existing.aliases = dedupe([...(input.aliases ?? []), ...existing.aliases, input.name])
       existing.status = input.status ?? 'active'
+      existing.source = input.source ?? existing.source ?? 'manual'
+      if (existing.status === 'active') existing.verifiedAt = Date.now()
       existing.lastHit = Date.now()
       this.save()
       return existing
@@ -140,10 +176,39 @@ export class GameRegistry {
       firstSeen: Date.now(),
       lastHit: Date.now(),
       status: input.status ?? 'active',
+      source: input.source ?? 'manual',
+      verifiedAt: (input.status ?? 'active') === 'active' ? Date.now() : 0,
     }
     this.games.push(entry)
     this.save()
     return entry
+  }
+
+  /** 复验成功：标记 active + 刷新时间（地址可能被更新过） */
+  markVerified(name: string, site?: GameSite): GameEntry | undefined {
+    const entry = this.find(name)
+    if (entry === undefined) return undefined
+    if (site !== undefined) entry.site = site
+    entry.status = 'active'
+    entry.verifiedAt = Date.now()
+    this.save()
+    return entry
+  }
+
+  /** 访问失败：标记 stale，提示重新登记（不删除，保留 hits 历史） */
+  markStale(name: string): void {
+    const entry = this.find(name)
+    if (entry === undefined) return
+    entry.status = 'stale'
+    this.save()
+  }
+
+  /** 只查找、不计 hits（内部用） */
+  private find(name: string): GameEntry | undefined {
+    const needle = normalizeName(name)
+    if (needle === '') return undefined
+    return this.games.find(entry => normalizeName(entry.name) === needle)
+      ?? this.games.find(entry => entry.aliases.some(alias => normalizeName(alias) === needle))
   }
 }
 

@@ -54,7 +54,7 @@ export function apply(ctx: Context, rawConfig: ConfigShape): void {
     log,
   })
 
-  registerTools(ctx, { registry, wiki, maxChars: config.maxReplyChars, log })
+  registerTools(ctx, { registry, wiki, maxChars: config.maxReplyChars, minIntervalMs: config.minIntervalMs, reverifyDays: config.reverifyDays, log })
 
   // 给通道留可选服务入口：ctx.get('dshGame') 存在时，napcat 之类可以直接调
   try {

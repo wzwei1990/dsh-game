@@ -11,12 +11,14 @@
 | `game_list` | 列出已收录的游戏（按最近被聊到的顺序） |
 | `game_resolve` | 游戏名 → wiki 站点（已收录直接返回；给了 slug 就探测并注册） |
 | `game_wiki_search` | 站内搜条目（Boss / 道具 / 玩法 / 任务） |
+| `game_verify` | 复验登记的 wiki 地址是否还能用（失败标 stale，提示重新登记） |
 | `game_wiki_read` | 读条目正文（纯文本，带来源链接；自动跟随重定向） |
 
 实测（影之刃零，`wiki.biligame.com/yingzhiren`）：
 
 ```
 game_wiki_search(game=影之刃零, keyword=Boss)
+game_verify(game=影之刃零)
 → BOSS图鉴 | BOSS攻略 | 隐藏BOSS | 魔渊BOSS攻略 | 魔渊BOSS
 
 game_wiki_read(game=影之刃零, title=BOSS图鉴)     # 重定向页自动跟随
@@ -70,6 +72,20 @@ game_wiki_read(game=影之刃零, title=魔渊BOSS攻略)
 
 > 为什么不让插件自己猜 slug：BWIKI 的 slug 是拼音缩写（影之刃零 = `yingzhiren`，不是 `yjsl0`），**必须由外部确认**。目前的做法是模型/用户给出子站地址或 slug，插件负责验证 + 落盘。
 
+## 地址会变，所以有"复验"
+
+BWIKI 子站会改地址/改版，所以游戏表里每条都记 `verifiedAt` + `status`：
+
+| 状态 | 含义 | 怎么变 |
+|---|---|---|
+| `active` | 可用 | `game_resolve` / `game_verify` 成功时刷新 `verifiedAt` |
+| `stale` | 以前能用，现在访问失败 | 查页面失败/复验失败时自动标记 |
+| `unresolved` | 探测过但没找到 | 不反复探测 |
+
+- `reverifyDays`（默认 30）：超过 N 天没校验，`game_list` 会提示"已 N 天未校验"
+- 用户/模型随时可以 `game_verify(game)` 复验；失败就重新找地址 → `game_resolve(game, url=…)` 覆盖登记
+- **hits 历史保留**，不会因为改地址丢掉"这个游戏多热"的信息
+
 ## 配置
 
 | 字段 | 默认 | 说明 |
@@ -79,6 +95,7 @@ game_wiki_read(game=影之刃零, title=魔渊BOSS攻略)
 | `cacheTtlMinutes` | `1440` | 页面/搜索缓存（0 = 不缓存） |
 | `timeoutMs` | `20000` | 单次请求超时 |
 | `maxRetries` | `2` | 限流/网络错误重试次数 |
+| `reverifyDays` | `30` | 超过多少天未校验就提示复验（0=不提示） |
 | `maxReplyChars` | `6000` | 工具单次返回字符上限（超出截断并标注） |
 | `userAgent` | 浏览器 UA | BWIKI 对默认 UA 更苛刻 |
 | `logLevel` | `info` | `debug` 会打每次请求与命中 |
@@ -105,8 +122,9 @@ await game.read('影之刃零', '魔渊BOSS攻略')          // PageResult（含
 ## 路线图
 
 - [x] **G0** BWIKI 适配器（搜索 / 正文 / 重定向）+ 游戏表 + 限速缓存 + 工具
-- [ ] **G1** BWIKI 总站自动发现：游戏名 → 总站搜索 → 子站地址 → 注册（免手填 slug）
-- [ ] **G2** 正文整形：按章节裁剪、表格转文本、超长分页返回
+- [x] **G1** 地址登记 + 复验（game_resolve(url) / game_verify / stale 标记 / reverifyDays）
+- [ ] **G2** 免手填发现：总站搜索/web_search 自动拿到子站地址（省一次人工）
+- [ ] **G2.5** 正文整形：按章节裁剪、表格转文本、超长分页返回
 - [ ] **G3** 与 dsh-napcat 联动：群里出现游戏名 → 预取摘要 → 带来源回答
 - [ ] **G4** 第二数据源（先验证可用性再接）：如 Fandom / wiki.gg / Steam 元数据
 - [ ] **G5** 观点档案：结合本插件查到的事实 + 机器人自己的历史发言，支撑"有立场"

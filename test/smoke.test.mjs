@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 const { htmlToText, decodeEntities, trimPage } = await import('../lib/wiki.js')
-const { normalizeName, mergeSeeds, GameRegistry, SEED_GAMES } = await import('../lib/registry.js')
+const { normalizeName, mergeSeeds, GameRegistry, SEED_GAMES, parseBwikiUrl, needsVerify } = await import('../lib/registry.js')
 const { backoffMs, hostOf } = await import('../lib/throttle.js')
 const { searchText, pageText } = await import('../lib/tools.js')
 
@@ -76,4 +76,36 @@ test('工具输出：搜索结果与正文都带来源', () => {
   assert.ok(text.includes('wiki.biligame.com/yingzhiren'))
   const page = pageText({ title: 'BOSS攻略', url: 'https://wiki.biligame.com/yingzhiren/BOSS攻略', text: '正文', truncated: false }, '影之刃零')
   assert.ok(page.includes('来源：https://wiki.biligame.com/yingzhiren/BOSS攻略'))
+})
+test('BWIKI 地址解析：URL / 纯 slug / 非法输入', () => {
+  assert.equal(parseBwikiUrl('https://wiki.biligame.com/yingzhiren/首页'), 'yingzhiren')
+  assert.equal(parseBwikiUrl('wiki.biligame.com/ys/api.php'), 'ys')
+  assert.equal(parseBwikiUrl('yingzhiren'), 'yingzhiren')
+  assert.equal(parseBwikiUrl('影之刃零'), undefined)
+  assert.equal(parseBwikiUrl(''), undefined)
+})
+
+test('复验判定：从未校验 / 超过 ttl / 未过期 / ttl=0', () => {
+  const base = { name: 'A', aliases: [], site: { kind: 'biligame', slug: 'a' }, hits: 1, firstSeen: 1, lastHit: 2, status: 'active' }
+  assert.equal(needsVerify({ ...base }, 30, 1000), true)
+  assert.equal(needsVerify({ ...base, verifiedAt: 0 }, 30, 1000), true)
+  const old = 1000 - 40 * 24 * 60 * 60_000
+  assert.equal(needsVerify({ ...base, verifiedAt: old }, 30, 1000), true)
+  assert.equal(needsVerify({ ...base, verifiedAt: 999 }, 30, 1000), false)
+  assert.equal(needsVerify({ ...base }, 0, 1000), false)
+})
+
+test('注册表：markStale / markVerified 改状态且保留 hits', () => {
+  const registry = new GameRegistry({ file: 'Z:\\definitely-not-writable\\games2.json' })
+  const before = registry.resolve('影之刃零')
+  assert.ok(before !== undefined)
+  const hits = before.hits
+  registry.markStale('影之刃零')
+  const stale = registry.list().find(entry => entry.name === '影之刃零')
+  assert.equal(stale.status, 'stale')
+  assert.equal(stale.hits, hits)
+  registry.markVerified('影之刃零', { kind: 'biligame', slug: 'yingzhiren' })
+  const fresh = registry.list().find(entry => entry.name === '影之刃零')
+  assert.equal(fresh.status, 'active')
+  assert.ok((fresh.verifiedAt ?? 0) > 0)
 })
