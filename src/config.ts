@@ -32,7 +32,7 @@ export const Config = z.object({
     .description('单次请求超时（毫秒）').volatile(),
   maxRetries: z.natural().default(2)
     .description('失败重试次数（限流/网络错误）').volatile(),
-  reverifyDays: z.natural().default(30).description('超过多少天未校验就提示复验（wiki 可能改地址）').volatile(),
+  reverifyDays: z.natural().default(1).description('超过多少天未校验就提示复验（wiki 可能改地址）').volatile(),
   maxReplyChars: z.natural().default(6000)
     .description('工具单次返回的最大字符数（超出截断）').volatile(),
   userAgent: z.string()
@@ -48,7 +48,7 @@ export const DEFAULTS: ConfigShape = {
   cacheTtlMinutes: 1440,
   timeoutMs: 20000,
   maxRetries: 2,
-  reverifyDays: 30,
+  reverifyDays: 1,
   maxReplyChars: 6000,
   userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
   logLevel: 'info',

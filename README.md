@@ -96,10 +96,22 @@ BWIKI 子站会改地址/改版，所以游戏表里每条都记 `verifiedAt` + 
 | `cacheTtlMinutes` | `1440` | 页面/搜索缓存（0 = 不缓存） |
 | `timeoutMs` | `20000` | 单次请求超时 |
 | `maxRetries` | `2` | 限流/网络错误重试次数 |
-| `reverifyDays` | `30` | 超过多少天未校验就提示复验（0=不提示） |
+| `reverifyDays` | `1` | 超过多少天未校验就提示复验（0=不提示）；默认 1 天，避免长期用死链 |
 | `maxReplyChars` | `6000` | 工具单次返回字符上限（超出截断并标注） |
 | `userAgent` | 浏览器 UA | BWIKI 对默认 UA 更苛刻 |
 | `logLevel` | `info` | `debug` 会打每次请求与命中 |
+
+## 设置面板
+
+装好后在「设置 → 插件」左侧会多一个 **游戏 Wiki** 页（`client/index.js`，手写客户端模块、免构建），可动态改：
+
+| 组 | 字段 |
+|---|---|
+| 抓取 | 请求间隔（`minIntervalMs`）、超时（`timeoutMs`）、重试次数（`maxRetries`） |
+| 缓存 | 缓存时长（`cacheTtlMinutes`）、复验天数（`reverifyDays`，默认 1） |
+| 输出与日志 | 返回字符上限（`maxReplyChars`）、日志级别（`logLevel`） |
+
+`registryFile` / `userAgent` 属于排障项，不上 UI；游戏表真实路径用 `game_list` 查看。
 
 ## 安装
 
