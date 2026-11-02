@@ -77,8 +77,12 @@ export function registerTools(ctx: Context, deps: ToolDeps): void {
     isConcurrencySafe: () => true,
     execute: async () => {
       const games = registry.list()
-      if (games.length === 0) return '游戏表是空的。'
-      return ['已收录 ' + games.length + ' 个游戏：', ...games.map((entry, index) => String(index + 1) + '. ' + entryLine(entry, deps.reverifyDays))].join('\n')
+      const lines = games.length === 0 ? ['游戏表是空的。'] : ['已收录 ' + games.length + ' 个游戏：']
+      if (games.length > 0) {
+        lines.push(...games.map((entry, index) => String(index + 1) + '. ' + entryLine(entry, deps.reverifyDays)))
+      }
+      lines.push('注册表：' + registry.path + (registry.lastSaveError === '' ? '' : '（写入失败：' + registry.lastSaveError + '）'))
+      return lines.join('\n')
     },
   }))
 

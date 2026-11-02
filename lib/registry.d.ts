@@ -40,6 +40,10 @@ export declare class GameRegistry {
     private readonly file;
     private readonly log;
     private games;
+    /** 实际使用的注册表路径（排障用） */
+    readonly path: string;
+    /** 最近一次保存失败的原因（成功则为空） */
+    lastSaveError: string;
     constructor(options?: RegistryOptions);
     private load;
     private save;

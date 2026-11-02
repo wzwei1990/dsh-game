@@ -85,8 +85,16 @@ export class GameRegistry {
   private readonly log: (level: 'debug' | 'info' | 'warn', message: string) => void
   private games: GameEntry[]
 
+  /** 实际使用的注册表路径（排障用） */
+  readonly path: string
+  /** 最近一次保存失败的原因（成功则为空） */
+  lastSaveError = ''
+
   constructor(options: RegistryOptions = {}) {
-    this.file = options.file ?? join(homedir(), '.dsh', 'dsh-game', 'games.json')
+    const dshHome = process.env.DSH_HOME
+    this.file = options.file
+      ?? (dshHome !== undefined && dshHome !== '' ? join(dshHome, 'dsh-game', 'games.json') : join(homedir(), '.dsh', 'dsh-game', 'games.json'))
+    this.path = this.file
     this.log = options.log ?? (() => undefined)
     this.games = this.load()
   }
@@ -105,9 +113,11 @@ export class GameRegistry {
   private save(): void {
     try {
       mkdirSync(dirname(this.file), { recursive: true })
-      writeFileSync(this.file, JSON.stringify({ version: 1, games: this.games }, null, 2), 'utf8')
+      writeFileSync(this.file, JSON.stringify({ version: 2, games: this.games }, null, 2), 'utf8')
+      this.lastSaveError = ''
     } catch (error) {
-      this.log('warn', '写注册表失败: ' + (error instanceof Error ? error.message : String(error)))
+      this.lastSaveError = error instanceof Error ? error.message : String(error)
+      this.log('warn', '写注册表失败: ' + this.lastSaveError + '（路径 ' + this.file + '）')
     }
   }
 
