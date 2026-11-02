@@ -1,0 +1,4 @@
+﻿# 标准 bundle 自挂载（与 dsh-napcat / dsh-meme 同款写法）
+- insert:
+    - id: dsh-game
+      name: 'dsh-game'
