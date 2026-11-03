@@ -65,7 +65,9 @@ export function resolveConfig(input: Partial<ConfigShape> | undefined): ConfigSh
       continue
     }
     if (key === 'registryFile' || key === 'userAgent') {
-      merged[key] = String(value)
+      // 宿主/设置页可能给对象或 null；只有非空字符串才认，否则回落默认值
+      const text = typeof value === 'string' ? value.trim() : ''
+      merged[key] = text === '' || text === '[object Object]' ? DEFAULTS[key] : text
       continue
     }
     const numeric = Number(value)

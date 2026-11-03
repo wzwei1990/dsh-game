@@ -139,3 +139,22 @@ test('长表截断：超过 16 行保留前 10 + 后 3', () => {
   assert.ok(!text.includes('行15 / 值15'))
   assert.ok(text.includes('行30 / 值30'))
 })
+test('客户端模块不得在顶层声明变量（会与其他插件的 classic script 撞名，拖垮整个 web boot）', async () => {
+  const { readFileSync } = await import('node:fs')
+  const { join } = await import('node:path')
+  const code = readFileSync(join(import.meta.dirname, '..', 'client', 'index.js'), 'utf8')
+  const offenders = code
+    .split('\n')
+    .filter(line => /^(const|let|var|function|class)\s/.test(line))
+  assert.deepEqual(offenders, [], '顶层声明必须包进 IIFE，否则会报 Identifier already declared')
+  assert.ok(code.includes('(() => {'), '客户端文件必须整体包在 IIFE 里')
+})
+test('对象/null 不能污染字符串配置（registerFile / userAgent）', async () => {
+  const { resolveConfig } = await import('../lib/config.js')
+  const withObject = resolveConfig({ registryFile: { weird: true }, userAgent: null })
+  assert.equal(withObject.registryFile, '')
+  assert.equal(typeof withObject.userAgent, 'string')
+  const withText = resolveConfig({ registryFile: ' /tmp/x.json ', userAgent: 'UA' })
+  assert.equal(withText.registryFile, '/tmp/x.json')
+  assert.equal(withText.userAgent, 'UA')
+})
