@@ -5,7 +5,11 @@
  *   window.__ModuleLoader__.load({ id, factory })
  *   factory(require) 里 `var module = { exports: {} }; var exports = module.exports`
  *   末尾 `exports.apply = apply; exports.inject = inject`
- * 少了这批样板会在浏览器里报 `ReferenceError: exports is not defined`。
+ *
+ * ⚠️ 必须整段包在 IIFE 里：客户端模块是以**普通脚本**注入页面的，共享全局作用域。
+ * 如果顶层写 `const moduleLoader = ...`，另一个插件（如 dsh-napcat）的同名顶层变量会撞车，
+ * 浏览器报 `Uncaught SyntaxError: Identifier 'moduleLoader' has already been declared`，
+ * 那个 entry 就 import 失败，整个 web boot 挂掉（页面只剩 "Failed to load plugins"）。
  *
  * 挂在「设置 → 插件」页（settings.section 槽），读写配置走宿主已有的 settings Remote：
  *   describe() → 当前值 + revision
@@ -13,20 +17,17 @@
  *
  * 只暴露"用户真的会调"的 7 个开关；registryFile / userAgent 属于排障项，不上 UI。
  */
+;(() => {
+  const moduleLoader = typeof window === 'undefined' ? undefined : window.__ModuleLoader__
+  if (moduleLoader === undefined || moduleLoader === null) return
 
-const moduleLoader = typeof window === 'undefined' ? undefined : window.__ModuleLoader__
-
-// 诊断探针：把加载过程中的异常留在 window 上，避免只能看控制台
-try { window.__DSH_GAME_STAGE__ = 'start' } catch (e) {}
-
-if (moduleLoader !== undefined && moduleLoader !== null) {
-  try { window.__DSH_GAME_STAGE__ = 'before-load' } catch (e) {}\n  moduleLoader.load({
+  moduleLoader.load({
     id: 'dsh-game',
     factory: (require) => {
       var module = { exports: {} }
       var exports = module.exports
 
-      try { window.__DSH_GAME_STAGE__ = 'factory-enter' } catch (e) {}\n      const react = require('react')
+      const react = require('react')
 
       const NS = 'dsh-game'
 
@@ -272,9 +273,9 @@ if (moduleLoader !== undefined && moduleLoader !== null) {
         }, Page))
       }
 
-      try { window.__DSH_GAME_STAGE__ = 'factory-done' } catch (e) {}\n      exports.apply = apply
+      exports.apply = apply
       exports.inject = inject
       return module.exports
     },
   })
-}
+})()

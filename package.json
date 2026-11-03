@@ -1,6 +1,6 @@
 {
   "name": "dsh-game",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Game knowledge for DeepSeek Harness: query a game wiki (BWIKI / MediaWiki) and hand real facts to the model, with a self-maintaining game registry and polite rate limiting",
   "type": "module",
   "main": "lib/index.js",
