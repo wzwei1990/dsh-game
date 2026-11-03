@@ -16,14 +16,17 @@
 
 const moduleLoader = typeof window === 'undefined' ? undefined : window.__ModuleLoader__
 
+// 诊断探针：把加载过程中的异常留在 window 上，避免只能看控制台
+try { window.__DSH_GAME_STAGE__ = 'start' } catch (e) {}
+
 if (moduleLoader !== undefined && moduleLoader !== null) {
-  moduleLoader.load({
+  try { window.__DSH_GAME_STAGE__ = 'before-load' } catch (e) {}\n  moduleLoader.load({
     id: 'dsh-game',
     factory: (require) => {
       var module = { exports: {} }
       var exports = module.exports
 
-      const react = require('react')
+      try { window.__DSH_GAME_STAGE__ = 'factory-enter' } catch (e) {}\n      const react = require('react')
 
       const NS = 'dsh-game'
 
@@ -269,7 +272,7 @@ if (moduleLoader !== undefined && moduleLoader !== null) {
         }, Page))
       }
 
-      exports.apply = apply
+      try { window.__DSH_GAME_STAGE__ = 'factory-done' } catch (e) {}\n      exports.apply = apply
       exports.inject = inject
       return module.exports
     },
