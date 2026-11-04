@@ -158,3 +158,25 @@ test('对象/null 不能污染字符串配置（registerFile / userAgent）', as
   assert.equal(withText.registryFile, '/tmp/x.json')
   assert.equal(withText.userAgent, 'UA')
 })
+test('词表：标题过滤 + 最长匹配召回', async () => {
+  const { toTerm, buildTermMap, matchTerms } = await import('../lib/terms.js')
+  // 噪声被过滤
+  assert.equal(toTerm('BV17M4y1i7uq'), undefined)
+  assert.equal(toTerm('CSS测试'), undefined)
+  assert.equal(toTerm('MOD下载后台'), undefined)
+  assert.equal(toTerm('BOSS'), undefined)
+  // 正常名词保留，括号说明被剥掉
+  assert.equal(toTerm('庞镇'), '庞镇')
+  assert.equal(toTerm('庞镇后街小院钥匙'), '庞镇后街小院钥匙')
+  assert.equal(toTerm('魔渊（BOSS）'), '魔渊')
+
+  const terms = buildTermMap(['庞镇', '庞镇后街小院钥匙', '雪山', '红房子', '魔渊', 'BV17M4y1i7uq'])
+  assert.ok(terms.has('庞镇'))
+  assert.ok(!terms.has('BV17M4y1i7uq'))
+
+  // 最长匹配：句子命中的词按长度降序
+  const hits = matchTerms('那我应该可以直接去庞镇了吧', terms)
+  assert.ok(hits.includes('庞镇'))
+  const hits2 = matchTerms('庞镇后街小院钥匙在哪', terms)
+  assert.equal(hits2[0], '庞镇后街小院钥匙')
+})

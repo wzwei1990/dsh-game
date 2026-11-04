@@ -18,6 +18,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { Config, resolveConfig, type ConfigShape } from './config.js'
 
 import { GameRegistry } from './registry.js'
+import { TermStore, matchTerms } from './terms.js'
 import { registerTools } from './tools.js'
 import { WikiClient } from './wiki.js'
 
@@ -45,6 +46,10 @@ export function apply(ctx: Context, rawConfig: ConfigShape): void {
     file: config.registryFile === '' ? undefined : config.registryFile,
     log,
   })
+  const termStore = new TermStore({
+    ttlDays: config.termsTtlDays,
+    log,
+  })
   const wiki = new WikiClient({
     minIntervalMs: config.minIntervalMs,
     cacheTtlMs: Math.max(0, config.cacheTtlMinutes) * 60_000,
@@ -54,7 +59,35 @@ export function apply(ctx: Context, rawConfig: ConfigShape): void {
     log,
   })
 
-  registerTools(ctx, { registry, wiki, maxChars: config.maxReplyChars, minIntervalMs: config.minIntervalMs, reverifyDays: config.reverifyDays, log })
+  registerTools(ctx, {
+    registry,
+    wiki,
+    terms: termStore,
+    maxChars: config.maxReplyChars,
+    minIntervalMs: config.minIntervalMs,
+    reverifyDays: config.reverifyDays,
+    termsMaxPages: config.termsMaxPages,
+    log,
+  })
+
+  /**
+   * 词表预热：插件加载后在后台把每个已收录游戏的词表补齐（不阻塞启动）。
+   * 用户不需要手动跑 game_terms —— 这里是幂等的：有缓存直接跳过，过期才重建。
+   */
+  const warmTerms = (): void => {
+    const games = registry.list().filter(entry => entry.status === 'active')
+    for (const [index, entry] of games.entries()) {
+      // 串行 + 间隔：BWIKI 限流很凶，别在启动时并发打
+      setTimeout(() => {
+        void termStore.warm(entry.name, entry.site, wiki, config.termsMaxPages)
+          .then(result => {
+            if (result !== undefined) log('info', '词表就绪：' + entry.name + '（' + result.terms.size + ' 个词）')
+          })
+          .catch(() => undefined)
+      }, index * (config.minIntervalMs + 1000))
+    }
+  }
+  warmTerms()
 
   // 给通道留可选服务入口：ctx.get('dshGame') 存在时，napcat 之类可以直接调
   try {
@@ -63,7 +96,30 @@ export function apply(ctx: Context, rawConfig: ConfigShape): void {
       list: () => registry.list(),
       resolve: (name: string) => registry.resolve(name),
       search: (game: string, keyword: string) => wiki.search(registry.site(game), keyword),
-      read: (game: string, title: string) => wiki.read(registry.site(game), title),
+      read: (game: string, title: string, options?: { maxChars?: number; section?: number }) =>
+        wiki.read(registry.site(game), title, options ?? {}),
+      terms: (game: string) => termStore.get(game, registry.site(game).slug),
+      /** 词表召回：给通道判断"这条消息在聊哪个游戏"用（只召回，不判断） */
+      detect: async (text: string) => {
+        const out: Array<{ game: string; hits: string[]; pages: string[] }> = []
+        for (const entry of registry.list()) {
+          if (entry.status !== 'active') continue
+          const index = termStore.get(entry.name, entry.site.slug)
+          if (index === undefined) {
+            // 还没建好：后台补建（不阻塞本次召回），下次就能命中
+            void termStore.warm(entry.name, entry.site, wiki, config.termsMaxPages).catch(() => undefined)
+            continue
+          }
+          const hits = matchTerms(text, index.terms)
+          if (hits.length === 0) continue
+          out.push({
+            game: entry.name,
+            hits,
+            pages: hits.map(term => index.terms.get(term) ?? term),
+          })
+        }
+        return out.sort((a, b) => b.hits.length - a.hits.length)
+      },
     })
   } catch {
     log('debug', '宿主不支持 provide(dshGame)，跳过服务注册（工具仍可用）')

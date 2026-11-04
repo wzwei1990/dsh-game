@@ -11,6 +11,10 @@ export interface ConfigShape {
     /** 失败重试次数（567/403/429/网络错误） */
     maxRetries: number;
     /** 工具单次返回的最大字符数（超出截断并标注） */
+    /** 词表有效期（天）：0 = 永不过期 */
+    termsTtlDays: number;
+    /** 建词表时最多翻几页（每页 500 条标题） */
+    termsMaxPages: number;
     maxReplyChars: number;
     /** 超过多少天未校验就提示复验（0=不提示） */
     reverifyDays: number;
@@ -24,6 +28,8 @@ export declare const Config: z<Schemastery.ObjectS<NoInfer<{
     cacheTtlMinutes: z<number, number, "volatile-defined">;
     timeoutMs: z<number, number, "volatile-defined">;
     maxRetries: z<number, number, "volatile-defined">;
+    termsTtlDays: z<number, number, "volatile-defined">;
+    termsMaxPages: z<number, number, "volatile-defined">;
     reverifyDays: z<number, number, "volatile-defined">;
     maxReplyChars: z<number, number, "volatile-defined">;
     userAgent: z<string, string, "volatile-defined">;
@@ -34,6 +40,8 @@ export declare const Config: z<Schemastery.ObjectS<NoInfer<{
     cacheTtlMinutes: z<number, number, "volatile-defined">;
     timeoutMs: z<number, number, "volatile-defined">;
     maxRetries: z<number, number, "volatile-defined">;
+    termsTtlDays: z<number, number, "volatile-defined">;
+    termsMaxPages: z<number, number, "volatile-defined">;
     reverifyDays: z<number, number, "volatile-defined">;
     maxReplyChars: z<number, number, "volatile-defined">;
     userAgent: z<string, string, "volatile-defined">;

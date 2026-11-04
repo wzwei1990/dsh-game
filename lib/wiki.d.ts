@@ -38,6 +38,8 @@ export interface WikiClientLike {
         section?: number;
     }): Promise<PageResult>;
     sections(site: GameSite, title: string): Promise<SectionInfo[]>;
+    /** 全站页面标题（词表用） */
+    allpages(site: GameSite, maxPages?: number): Promise<string[]>;
 }
 /** 站点基础信息（用于校验 slug 是否真的有 wiki） */
 export declare function probeSite(fetcher: PoliteFetcher, slug: string): Promise<{
@@ -64,6 +66,11 @@ export declare class WikiClient implements WikiClientLike {
     private cacheGet;
     private cacheSet;
     search(site: GameSite, keyword: string, limit?: number): Promise<SearchHit[]>;
+    /**
+     * 拉全站页面标题（词表用）。MediaWiki 每页最多 500 条，这里最多翻 maxPages 页。
+     * BWIKI 限流很凶：内部由 PoliteFetcher 串行排队，调用方一次只拉一个游戏即可。
+     */
+    allpages(site: GameSite, maxPages?: number): Promise<string[]>;
     /** 列出一个页面的章节（用于先看大纲，再只读需要的章节，省上下文） */
     sections(site: GameSite, title: string): Promise<SectionInfo[]>;
     read(site: GameSite, title: string, options?: {

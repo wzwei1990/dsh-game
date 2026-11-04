@@ -40,6 +40,8 @@ export interface WikiClientLike {
   search(site: GameSite, keyword: string, limit?: number): Promise<SearchHit[]>
   read(site: GameSite, title: string, options?: { maxChars?: number; section?: number }): Promise<PageResult>
   sections(site: GameSite, title: string): Promise<SectionInfo[]>
+  /** 全站页面标题（词表用） */
+  allpages(site: GameSite, maxPages?: number): Promise<string[]>
 }
 
 interface BwikiResponse<T> {
@@ -232,6 +234,35 @@ export class WikiClient implements WikiClientLike {
     this.cacheSet(key, hits)
     this.log('debug', 'wiki 搜索 ' + site.slug + ' "' + trimmed + '" → ' + hits.length + ' 条')
     return hits
+  }
+
+  /**
+   * 拉全站页面标题（词表用）。MediaWiki 每页最多 500 条，这里最多翻 maxPages 页。
+   * BWIKI 限流很凶：内部由 PoliteFetcher 串行排队，调用方一次只拉一个游戏即可。
+   */
+  async allpages(site: GameSite, maxPages = 3): Promise<string[]> {
+    const key = 'allpages:' + site.slug + ':' + String(maxPages)
+    const cached = this.cacheGet<string[]>(key)
+    if (cached !== undefined) return cached
+    const titles: string[] = []
+    let cont = ''
+    for (let page = 0; page < Math.max(1, maxPages); page += 1) {
+      const url = this.apiBase(site)
+        + '?action=query&list=allpages&apnamespace=0&aplimit=500&format=json&formatversion=2'
+        + (cont === '' ? '' : '&apcontinue=' + encodeURIComponent(cont))
+      const json = await this.fetcher.json<{
+        query?: { allpages?: Array<{ title?: string }> }
+        continue?: { apcontinue?: string }
+      }>(url, { referer: this.pageUrl(site, '首页') })
+      for (const item of json.query?.allpages ?? []) {
+        if (typeof item.title === 'string' && item.title !== '') titles.push(item.title)
+      }
+      cont = json.continue?.apcontinue ?? ''
+      if (cont === '') break
+    }
+    this.cacheSet(key, titles)
+    this.log('debug', 'wiki 标题 ' + site.slug + ' → ' + titles.length + ' 个')
+    return titles
   }
 
   /** 列出一个页面的章节（用于先看大纲，再只读需要的章节，省上下文） */

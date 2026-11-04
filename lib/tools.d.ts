@@ -7,10 +7,14 @@
 import type { Context } from '@deepseek-ai/cordis';
 import { type GameRegistry, type GameSite } from './registry.js';
 import type { SearchHit, WikiClientLike } from './wiki.js';
+import type { TermStore } from './terms.js';
 export interface ToolDeps {
     registry: GameRegistry;
     wiki: WikiClientLike;
+    terms: TermStore;
     maxChars: number;
+    /** 建词表时最多翻几页 */
+    termsMaxPages: number;
     /** 探测/复验时的最小请求间隔 */
     minIntervalMs: number;
     /** 超过多少天未校验就提示复验（0=不提示） */

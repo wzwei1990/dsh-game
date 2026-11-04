@@ -9,11 +9,15 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 
 import { parseBwikiUrl, type GameEntry, type GameRegistry, type GameSite } from './registry.js'
 import type { SearchHit, WikiClientLike } from './wiki.js'
+import type { TermStore } from './terms.js'
 
 export interface ToolDeps {
   registry: GameRegistry
   wiki: WikiClientLike
+  terms: TermStore
   maxChars: number
+  /** 建词表时最多翻几页 */
+  termsMaxPages: number
   /** 探测/复验时的最小请求间隔 */
   minIntervalMs: number
   /** 超过多少天未校验就提示复验（0=不提示） */
@@ -174,6 +178,36 @@ export function registerTools(ctx: Context, deps: ToolDeps): void {
         return '复验通过：' + input.game + ' → ' + probe.name + '（https://wiki.biligame.com/' + site.slug + '/）'
       } catch (error) {
         return '复验失败（可能限流，稍后重试）：' + (error instanceof Error ? error.message : String(error))
+      }
+    },
+  }))
+
+  ctx.tools.register(defineTool({
+    name: 'game_terms',
+    description: '建立/查看某个游戏的词表（用 wiki 全站页面标题抽出地名、道具名、Boss 名等），词表用于识别群聊里"没点名游戏"的话题。首次会拉 1-3 页标题（有限流，慢一些）。',
+    parameters: {
+      game: { type: 'string', required: true, description: '游戏名' },
+    },
+    output: textOutput(),
+    isConcurrencySafe: () => false,
+    execute: async args => {
+      const input = args as { game: string }
+      let site: GameSite
+      try {
+        site = registry.site(input.game)
+      } catch (error) {
+        return error instanceof Error ? error.message : String(error)
+      }
+      const existing = deps.terms.get(input.game, site.slug)
+      try {
+        const index = existing ?? await deps.terms.ensure(input.game, site, wiki, deps.termsMaxPages)
+        if (index === undefined) return '词表建立失败（wiki 没有返回标题，或正在限流）。'
+        const sample = [...index.terms.keys()].slice(0, 20).join('、')
+        return '【' + input.game + '】词表 ' + index.terms.size + ' 个词（页面标题 ' + String(index.terms.size) + ' 个来源）\n'
+          + '样例：' + sample + '\n'
+          + '用途：群聊出现这些词时，模型可以判断"是不是在聊这个游戏"，再决定要不要查 wiki。'
+      } catch (error) {
+        return '建立词表失败：' + (error instanceof Error ? error.message : String(error))
       }
     },
   }))
