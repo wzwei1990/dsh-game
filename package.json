@@ -1,6 +1,6 @@
 {
   "name": "dsh-game",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "description": "Game knowledge for DeepSeek Harness: query a game wiki (BWIKI / MediaWiki) and hand real facts to the model, with a self-maintaining game registry and polite rate limiting",
   "type": "module",
   "main": "lib/index.js",
@@ -40,7 +40,7 @@
     "url": "https://github.com/wzwei1990/dsh-game/issues"
   },
   "engines": {
-    "dsh": ">=0.2.1-rc.2 <0.3.0-0",
+    "dsh": ">=0.2.1-0 <0.3.0-0",
     "node": ">=22"
   },
   "dsh": {
@@ -71,6 +71,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --test \"test/**/*.test.mjs\"",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "typecheck:latest": "node scripts/check-latest-host.mjs"
   }
 }
