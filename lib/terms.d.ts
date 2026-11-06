@@ -15,7 +15,13 @@ export interface TermHit {
 }
 /** 标题 → 可用作词表的名词（2~8 字，去掉括号补充说明） */
 export declare function toTerm(title: string): string | undefined;
-export declare function buildTermMap(titles: readonly string[]): Map<string, string>;
+/**
+ * 标题 → 词表。
+ *
+ * `extras` 是**游戏名与别名**：实测 200 条群里 0 次说全名，但只要说了就必须能召回
+ * （"影之刃零这个 boss 好难"原来一条都命中不到，因为词表只有页面标题，游戏名不是标题）。
+ */
+export declare function buildTermMap(titles: readonly string[], extras?: readonly string[]): Map<string, string>;
 /** 最长匹配：返回命中的词（按长度降序，最多 limit 个） */
 export declare function matchTerms(text: string, terms: Map<string, string>, limit?: number): string[];
 export interface TermStoreOptions {
@@ -35,11 +41,11 @@ export declare class TermStore {
     constructor(options: TermStoreOptions);
     private fileOf;
     /** 读缓存（含内存缓存）；过期返回 undefined */
-    get(game: string, slug: string, now?: number): TermIndex | undefined;
+    get(game: string, slug: string, now?: number, fallbackExtras?: readonly string[]): TermIndex | undefined;
     /** 落盘（调用方负责先拉 titles） */
-    save(game: string, slug: string, titles: readonly string[]): TermIndex;
+    save(game: string, slug: string, titles: readonly string[], extras?: readonly string[]): TermIndex;
     /** 后台预热：没缓存就建；同一个游戏并发调用只建一次（不阻塞调用方） */
-    warm(game: string, site: GameSite, wiki: WikiClientLike, maxPages?: number): Promise<TermIndex | undefined>;
+    warm(game: string, site: GameSite, wiki: WikiClientLike, maxPages?: number, extras?: readonly string[]): Promise<TermIndex | undefined>;
     /** 拉词表（缓存过期/不存在时拉一次 allpages） */
-    ensure(game: string, site: GameSite, wiki: WikiClientLike, maxPages?: number): Promise<TermIndex | undefined>;
+    ensure(game: string, site: GameSite, wiki: WikiClientLike, maxPages?: number, extras?: readonly string[]): Promise<TermIndex | undefined>;
 }

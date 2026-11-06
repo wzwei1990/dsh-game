@@ -63,7 +63,13 @@ export function toTerm(title: string): string | undefined {
   return base
 }
 
-export function buildTermMap(titles: readonly string[]): Map<string, string> {
+/**
+ * 标题 → 词表。
+ *
+ * `extras` 是**游戏名与别名**：实测 200 条群里 0 次说全名，但只要说了就必须能召回
+ * （"影之刃零这个 boss 好难"原来一条都命中不到，因为词表只有页面标题，游戏名不是标题）。
+ */
+export function buildTermMap(titles: readonly string[], extras: readonly string[] = []): Map<string, string> {
   const terms = new Map<string, string>()
   for (const title of titles) {
     const term = toTerm(title)
@@ -71,6 +77,12 @@ export function buildTermMap(titles: readonly string[]): Map<string, string> {
     // 同一个词保留更短的页面标题（更可能是主条目）
     const existing = terms.get(term)
     if (existing === undefined || title.length < existing.length) terms.set(term, title)
+  }
+  for (const raw of extras) {
+    const term = raw.trim()
+    if (term.length < 2) continue
+    // 游戏名/别名直接进表，不受 toTerm 的"通用词/纯英文"过滤影响
+    if (!terms.has(term)) terms.set(term, term)
   }
   return terms
 }
@@ -92,11 +104,13 @@ export interface TermStoreOptions {
 }
 
 interface CachedTerms {
-  version: 1
+  version: 2
   game: string
   slug: string
   builtAt: number
   titles: string[]
+  /** 游戏名与别名（v2 起落盘，读缓存时也用得上） */
+  extras?: string[]
 }
 
 /** 词表缓存：~/.dsh/dsh-game/terms/<game>.json */
@@ -121,7 +135,7 @@ export class TermStore {
   }
 
   /** 读缓存（含内存缓存）；过期返回 undefined */
-  get(game: string, slug: string, now = Date.now()): TermIndex | undefined {
+  get(game: string, slug: string, now = Date.now(), fallbackExtras: readonly string[] = []): TermIndex | undefined {
     const key = slug + '|' + game
     const mem = this.memory.get(key)
     if (mem !== undefined) {
@@ -132,7 +146,8 @@ export class TermStore {
       const raw = JSON.parse(readFileSync(this.fileOf(game, slug), 'utf8')) as CachedTerms
       if (!Array.isArray(raw.titles) || raw.titles.length === 0) return undefined
       if (this.ttlMs > 0 && now - raw.builtAt >= this.ttlMs) return undefined
-      const index: TermIndex = { game, slug, terms: buildTermMap(raw.titles), builtAt: raw.builtAt }
+      const extras = Array.isArray(raw.extras) && raw.extras.length > 0 ? raw.extras : fallbackExtras
+      const index: TermIndex = { game, slug, terms: buildTermMap(raw.titles, extras), builtAt: raw.builtAt }
       this.memory.set(key, index)
       return index
     } catch {
@@ -141,41 +156,41 @@ export class TermStore {
   }
 
   /** 落盘（调用方负责先拉 titles） */
-  save(game: string, slug: string, titles: readonly string[]): TermIndex {
+  save(game: string, slug: string, titles: readonly string[], extras: readonly string[] = []): TermIndex {
     const builtAt = Date.now()
-    const payload: CachedTerms = { version: 1, game, slug, builtAt, titles: [...titles] }
+    const payload: CachedTerms = { version: 2, game, slug, builtAt, titles: [...titles], ...(extras.length > 0 ? { extras: [...extras] } : {}) }
     try {
       mkdirSync(dirname(this.fileOf(game, slug)), { recursive: true })
       writeFileSync(this.fileOf(game, slug), JSON.stringify(payload), 'utf8')
     } catch (error) {
       this.log('warn', '写词表失败: ' + (error instanceof Error ? error.message : String(error)))
     }
-    const index: TermIndex = { game, slug, terms: buildTermMap(titles), builtAt }
+    const index: TermIndex = { game, slug, terms: buildTermMap(titles, extras), builtAt }
     this.memory.set(slug + '|' + game, index)
     return index
   }
 
   /** 后台预热：没缓存就建；同一个游戏并发调用只建一次（不阻塞调用方） */
-  async warm(game: string, site: GameSite, wiki: WikiClientLike, maxPages = 3): Promise<TermIndex | undefined> {
-    const cached = this.get(game, site.slug)
+  async warm(game: string, site: GameSite, wiki: WikiClientLike, maxPages = 3, extras: readonly string[] = []): Promise<TermIndex | undefined> {
+    const cached = this.get(game, site.slug, Date.now(), extras)
     if (cached !== undefined) return cached
     const key = site.slug + '|' + game
     const running = this.inflight.get(key)
     if (running !== undefined) return running
-    const task = this.ensure(game, site, wiki, maxPages)
+    const task = this.ensure(game, site, wiki, maxPages, extras)
       .finally(() => { this.inflight.delete(key) })
     this.inflight.set(key, task)
     return task
   }
 
   /** 拉词表（缓存过期/不存在时拉一次 allpages） */
-  async ensure(game: string, site: GameSite, wiki: WikiClientLike, maxPages = 3): Promise<TermIndex | undefined> {
-    const cached = this.get(game, site.slug)
+  async ensure(game: string, site: GameSite, wiki: WikiClientLike, maxPages = 3, extras: readonly string[] = []): Promise<TermIndex | undefined> {
+    const cached = this.get(game, site.slug, Date.now(), extras)
     if (cached !== undefined) return cached
     try {
       const titles = await wiki.allpages(site, maxPages)
       if (titles.length === 0) return undefined
-      const index = this.save(game, site.slug, titles)
+      const index = this.save(game, site.slug, titles, extras)
       this.log('info', '词表已建立：' + game + '（' + index.terms.size + ' 个词，页面 ' + titles.length + '）')
       return index
     } catch (error) {
