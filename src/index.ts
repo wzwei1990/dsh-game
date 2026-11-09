@@ -19,6 +19,7 @@ import { Config, resolveConfig, type ConfigShape } from './config.js'
 
 import { GameRegistry } from './registry.js'
 import { TermStore, matchTerms } from './terms.js'
+import { CallLog } from './calls.js'
 import { registerTools } from './tools.js'
 import { WikiClient } from './wiki.js'
 
@@ -59,6 +60,9 @@ export function apply(ctx: Context, rawConfig: ConfigShape): void {
     log,
   })
 
+  const calls = new CallLog({ log })
+  log('debug', '工具调用日志：' + calls.file)
+
   registerTools(ctx, {
     registry,
     wiki,
@@ -68,6 +72,7 @@ export function apply(ctx: Context, rawConfig: ConfigShape): void {
     reverifyDays: config.reverifyDays,
     termsMaxPages: config.termsMaxPages,
     log,
+    calls,
   })
 
   /** 词表里必须包含游戏名与别名：群里说"影之刃零"时原来一条都命中不到（只有页面标题在词表里） */

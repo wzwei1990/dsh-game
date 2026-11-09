@@ -6,6 +6,7 @@
  */
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
+import type { CallLog } from './calls.js'
 
 import { parseBwikiUrl, type GameEntry, type GameRegistry, type GameSite } from './registry.js'
 import type { SearchHit, WikiClientLike } from './wiki.js'
@@ -23,6 +24,8 @@ export interface ToolDeps {
   /** 超过多少天未校验就提示复验（0=不提示） */
   reverifyDays: number
   log: (level: 'debug' | 'info' | 'warn', message: string) => void
+  /** 工具调用日志（缺省不记） */
+  calls?: CallLog
 }
 
 function textOutput() {
@@ -71,9 +74,28 @@ export function pageText(result: { title: string; url: string; text: string; tru
 }
 
 export function registerTools(ctx: Context, deps: ToolDeps): void {
+  /** 包一层：任何 game_* 工具被调用都往 calls.jsonl 记一行（失败也记）。 */
+  const registerTool = (tool: unknown): void => {
+    const def = tool as { name: string; execute?: (...args: never[]) => unknown }
+    const original = def.execute
+    if (typeof original === 'function') {
+      def.execute = (async (args: unknown, exec: unknown) => {
+        const started = Date.now()
+        try {
+          const result = await (original as (a: unknown, e: unknown) => Promise<unknown>)(args, exec)
+          deps.calls?.record({ tool: def.name, args: (args ?? {}) as Record<string, unknown>, ok: true, ms: Date.now() - started, chars: typeof result === 'string' ? result.length : undefined })
+          return result
+        } catch (error) {
+          deps.calls?.record({ tool: def.name, args: (args ?? {}) as Record<string, unknown>, ok: false, ms: Date.now() - started, error: String((error as Error)?.message ?? error).slice(0, 200) })
+          throw error
+        }
+      }) as never
+    }
+    ctx.tools.register(tool as never)
+  }
   const { registry, wiki, log } = deps
 
-  ctx.tools.register(defineTool({
+  registerTool(defineTool({
     name: 'game_list',
     description: '列出当前已收录的游戏（按最近被聊到的顺序）。用于确认某个游戏现在能不能查 wiki。',
     parameters: {},
@@ -90,7 +112,7 @@ export function registerTools(ctx: Context, deps: ToolDeps): void {
     },
   }))
 
-  ctx.tools.register(defineTool({
+  registerTool(defineTool({
     name: 'game_resolve',
     description: '把游戏名（可带别名）解析成可查询的 wiki 站点。已收录直接返回；未收录时给 slug 或 BWIKI 子站地址即可探测并登记（一次探测，之后落盘复用）。',
     parameters: {
@@ -142,7 +164,7 @@ export function registerTools(ctx: Context, deps: ToolDeps): void {
     },
   }))
 
-  ctx.tools.register(defineTool({
+  registerTool(defineTool({
     name: 'game_verify',
     description: '复验某个游戏登记的 wiki 地址是否还能用（wiki 可能改地址/改版）。失败会把该游戏标成 stale，提示重新登记。',
     parameters: {
@@ -182,7 +204,7 @@ export function registerTools(ctx: Context, deps: ToolDeps): void {
     },
   }))
 
-  ctx.tools.register(defineTool({
+  registerTool(defineTool({
     name: 'game_terms',
     description: '建立/查看某个游戏的词表（用 wiki 全站页面标题抽出地名、道具名、Boss 名等），词表用于识别群聊里"没点名游戏"的话题。首次会拉 1-3 页标题（有限流，慢一些）。',
     parameters: {
@@ -212,7 +234,7 @@ export function registerTools(ctx: Context, deps: ToolDeps): void {
     },
   }))
 
-  ctx.tools.register(defineTool({
+  registerTool(defineTool({
     name: 'game_wiki_search',
     description: '在某个游戏的 BWIKI 里搜条目（Boss/道具/玩法/任务都行），返回标题+摘要+来源。',
     parameters: {
@@ -244,7 +266,7 @@ export function registerTools(ctx: Context, deps: ToolDeps): void {
     },
   }))
 
-  ctx.tools.register(defineTool({
+  registerTool(defineTool({
     name: 'game_wiki_outline',
     description: '列出一个 wiki 条目的章节大纲（章节号 + 标题）。长条目先看大纲，再用 game_wiki_read 的 section 只读需要的那节，省上下文。',
     parameters: {
@@ -279,7 +301,7 @@ export function registerTools(ctx: Context, deps: ToolDeps): void {
     },
   }))
 
-  ctx.tools.register(defineTool({
+  registerTool(defineTool({
     name: 'game_wiki_read',
     description: '读某个游戏 BWIKI 条目的正文（纯文本，带来源链接）。这是"真的知道"内容的关键：先 search 拿标题，再 read 正文。',
     parameters: {

@@ -5,6 +5,7 @@
  * 查不到就明确说查不到，禁止编数值（prompt 里也会写）。
  */
 import type { Context } from '@deepseek-ai/cordis';
+import type { CallLog } from './calls.js';
 import { type GameRegistry, type GameSite } from './registry.js';
 import type { SearchHit, WikiClientLike } from './wiki.js';
 import type { TermStore } from './terms.js';
@@ -20,6 +21,8 @@ export interface ToolDeps {
     /** 超过多少天未校验就提示复验（0=不提示） */
     reverifyDays: number;
     log: (level: 'debug' | 'info' | 'warn', message: string) => void;
+    /** 工具调用日志（缺省不记） */
+    calls?: CallLog;
 }
 /** 搜索结果的紧凑文本 */
 export declare function searchText(game: string, keyword: string, hits: SearchHit[], site: GameSite): string;
